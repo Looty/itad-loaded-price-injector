@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "ITAD Loaded Price Injector",
+  "version": "1.0",
+  "description": "Shows Loaded.com (Israeli store) prices on IsThereAnyDeal",
+  "permissions": ["scripting"],
+  "host_permissions": [
+    "https://isthereanydeal.com/*",
+    "https://www.loaded.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://isthereanydeal.com/game/*/info/*"],
+      "js": ["content_game.js"],
+      "css": ["style.css"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://isthereanydeal.com/waitlist/*"],
+      "js": ["content_waitlist.js"],
+      "css": ["style.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}
