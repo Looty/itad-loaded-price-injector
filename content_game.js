@@ -50,7 +50,9 @@ function injectLoadedRow() {
   row.appendChild(makeCell(`cell cell--low ${svelte['cell--low']}`, '—'));
 
   // .cell--cut
-  row.appendChild(makeCell(`cell cell--cut ${svelte['cell--cut']}`, '—'));
+  const cutCell = makeCell(`cell cell--cut ${svelte['cell--cut']}`, '—');
+  cutCell.id = 'loaded-cut-cell';
+  row.appendChild(cutCell);
 
   // .cell--price (placeholder)
   const priceCell = makeCell(`cell cell--price ${svelte['cell--price']}`);
@@ -93,6 +95,17 @@ function injectLoadedRow() {
       oldSpan.className = 'loaded-old-price';
       oldSpan.textContent = res.oldPrice;
       cell.appendChild(oldSpan);
+    }
+    // Compare loaded price against best price already on the page
+    const otherPrices = [...document.querySelectorAll(`a.row[class*="svelte"]:not(#${LOADED_ID}) .cell--price`)]
+      .map(c => { const m = c.textContent.match(/[\d,]+\.?\d*/); return m ? parseFloat(m[0].replace(',', '')) : null; })
+      .filter(p => p !== null && p > 0);
+    const bestPrice = otherPrices.length ? Math.min(...otherPrices) : null;
+    const loadedPrice = parseFloat(res.price);
+    if (bestPrice && loadedPrice < bestPrice) {
+      const pct = Math.round((1 - loadedPrice / bestPrice) * 100);
+      const cutCell = document.getElementById('loaded-cut-cell');
+      if (cutCell && pct > 0) cutCell.textContent = `-${pct}%`;
     }
     // Update the row href with the real URL
     document.getElementById(LOADED_ID).href = res.url;

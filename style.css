@@ -43,6 +43,30 @@
 }
 
 /* ── Waitlist page: inline badge ── */
+.loaded-waitlist-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  align-self: center;
+  justify-self: center;
+}
+.loaded-cut-chip {
+  visibility: hidden;
+  font-size: 12.5px;
+  font-weight: 500;
+  font-family: Roboto, sans-serif;
+  background: transparent;
+  color: #fff;
+  border-radius: 2px;
+  padding: 0px 5px;
+  white-space: nowrap;
+  min-width: 36px;
+  text-align: center;
+}
+.loaded-cut-chip.loaded-cut-chip--visible {
+  visibility: visible;
+}
 .loaded-waitlist-badge {
   display: inline-flex;
   align-items: center;
@@ -75,8 +99,8 @@
   opacity: 0.4;
 }
 .loaded-waitlist-badge.loaded-sold-out-badge {
-  background: #b71c1c;
-  border-color: #b71c1c;
-  color: #fff;
-  font-weight: 700;
+  background: transparent;
+  border-color: #6d2626;
+  color: #e57373;
+  font-weight: 400;
 }

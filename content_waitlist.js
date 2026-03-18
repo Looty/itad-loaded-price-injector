@@ -10,8 +10,11 @@ function processItems() {
     const slug = match[1];
     const priceEl = item.querySelector('a[class*="price"][class*="svelte"]');
     if (!priceEl) { console.log('[Loaded] no priceEl for slug:', slug); return; }
-    // Insert badge as a grid child right before the first action button,
-    // and expand the grid to give it its own 90px column (taken from the 726px main column).
+    // One wrapper grid child containing a cut chip + price badge side by side.
+    const wrapper = document.createElement('div');
+    wrapper.className = 'loaded-waitlist-wrapper';
+    const cutChip = document.createElement('span');
+    cutChip.className = 'loaded-cut-chip';
     const badge = document.createElement('a');
     badge.className = 'loaded-waitlist-badge';
     badge.href = `https://www.loaded.com/${slug}-pc-steam`;
@@ -19,9 +22,11 @@ function processItems() {
     badge.rel = 'noopener noreferrer';
     badge.textContent = '…';
     badge.title = 'Checking Loaded.com price…';
+    wrapper.appendChild(badge);
+    wrapper.appendChild(cutChip);
     const firstAction = item.querySelector('button.action');
-    item.insertBefore(badge, firstAction ?? null);
-    item.style.gridTemplateColumns = '62px 127px 636px 200px 90px 45px 45px';
+    item.insertBefore(wrapper, firstAction ?? null);
+    item.style.gridTemplateColumns = '62px 127px 636px 200px 140px 45px 45px';
     chrome.runtime.sendMessage({ type: 'FETCH_LOADED', slug }, (res) => {
       if (!res || !res.available) {
         badge.textContent = 'N/A';
@@ -39,9 +44,12 @@ function processItems() {
       const itadPriceText = priceEl.querySelector('[class*="price"]')?.textContent?.trim();
       const itadUSD = parseFloat(itadPriceText?.replace(/[^0-9.]/g, ''));
       if (!isNaN(itadUSD) && priceUSD < itadUSD) {
+        const pct = Math.round((1 - priceUSD / itadUSD) * 100);
         badge.classList.add('loaded-cheaper');
         badge.textContent = `↓ $${priceUSD.toFixed(2)}`;
         badge.title = `Loaded.com is cheaper: $${priceUSD.toFixed(2)} vs $${itadUSD.toFixed(2)} on ITAD`;
+        cutChip.textContent = `-${pct}%`;
+        cutChip.classList.add('loaded-cut-chip--visible');
       } else {
         badge.classList.add('loaded-pricier');
         badge.textContent = `$${priceUSD.toFixed(2)}`;
