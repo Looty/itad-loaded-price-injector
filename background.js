@@ -58,19 +58,21 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
   const cacheKey = `loaded_cache_${itadSlug}`;
 
   (async () => {
-    // Serve from cache if fresh
     const stored = await chrome.storage.local.get(cacheKey);
     const entry = stored[cacheKey];
-    if (entry && Date.now() - entry.ts < CACHE_TTL_MS) {
-      console.log('[Loaded] Cache hit:', itadSlug);
+    if (entry) {
+      // Always serve cached data immediately, even if stale
+      console.log('[Loaded] Cache hit (stale-while-revalidate):', itadSlug);
       sendResponse(entry.data);
-      // Refresh cache in background for next visit (fire and forget)
-      fetchFromLoaded(itadSlug)
-        .then(data => chrome.storage.local.set({ [cacheKey]: { ts: Date.now(), data } }))
-        .catch(() => {});
+      // Always refresh in background if stale
+      if (Date.now() - entry.ts >= CACHE_TTL_MS) {
+        fetchFromLoaded(itadSlug)
+          .then(data => chrome.storage.local.set({ [cacheKey]: { ts: Date.now(), data } }))
+          .catch(() => {});
+      }
       return;
     }
-    // Cache miss — fetch and store
+    // True cache miss (first ever visit) — must fetch and wait
     try {
       const data = await fetchFromLoaded(itadSlug);
       await chrome.storage.local.set({ [cacheKey]: { ts: Date.now(), data } });
