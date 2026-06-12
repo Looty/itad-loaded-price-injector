@@ -6,7 +6,8 @@
   "permissions": ["scripting", "storage", "tabs"],
   "host_permissions": [
     "https://isthereanydeal.com/*",
-    "https://www.loaded.com/*"
+    "https://www.loaded.com/*",
+    "https://open.er-api.com/*"
   ],
   "action": {
     "default_popup": "popup.html",

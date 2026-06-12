@@ -1,3 +1,14 @@
+// Fetch USD->ILS rate once and reuse for every badge.
+const ratePromise = new Promise((resolve) => {
+  chrome.runtime.sendMessage({ type: 'GET_RATE' }, (res) => resolve(res?.rate ?? null));
+});
+
+function setNis(el, usd) {
+  ratePromise.then((rate) => {
+    if (rate && !isNaN(usd)) el.textContent = `₪${(usd * rate).toFixed(2)}`;
+  });
+}
+
 function processItems() {
   const items = document.querySelectorAll('.item[class*="svelte"]:not([data-loaded-injected])');
   console.log('[Loaded] processItems found:', items.length);
@@ -24,7 +35,13 @@ function processItems() {
     badge.rel = 'noopener noreferrer';
     badge.textContent = '…';
     badge.title = 'Checking Loaded.com price…';
-    wrapper.appendChild(badge);
+    const nisChip = document.createElement('span');
+    nisChip.className = 'loaded-waitlist-nis';
+    const priceCol = document.createElement('span');
+    priceCol.className = 'loaded-waitlist-pricecol';
+    priceCol.appendChild(badge);
+    priceCol.appendChild(nisChip);
+    wrapper.appendChild(priceCol);
     wrapper.appendChild(cutChip);
     const firstAction = item.querySelector('button.action');
     item.insertBefore(wrapper, firstAction ?? null);
@@ -58,6 +75,7 @@ function processItems() {
         return;
       }
       const priceUSD = parseFloat(res.price);
+      setNis(nisChip, priceUSD);
       // Compare with ITAD best price
       const itadPriceText = priceEl?.querySelector('[class*="price"]')?.textContent?.trim();
       const itadUSD = parseFloat(itadPriceText?.replace(/[^0-9.]/g, ''));

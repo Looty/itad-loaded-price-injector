@@ -90,6 +90,15 @@ function injectLoadedRow() {
     priceSpan.className = 'loaded-price';
     priceSpan.textContent = `$${res.price}`;
     cell.appendChild(priceSpan);
+    // NIS conversion, shown under the USD price.
+    const nisSpan = document.createElement('span');
+    nisSpan.className = 'loaded-price-nis';
+    cell.appendChild(nisSpan);
+    chrome.runtime.sendMessage({ type: 'GET_RATE' }, (rateRes) => {
+      const rate = rateRes?.rate;
+      const usd = parseFloat(res.price);
+      if (rate && !isNaN(usd)) nisSpan.textContent = `₪${(usd * rate).toFixed(2)}`;
+    });
     if (res.oldPrice) {
       const oldSpan = document.createElement('span');
       oldSpan.className = 'loaded-old-price';

@@ -75,7 +75,35 @@ async function fetchFromLoaded(itadSlug) {
   return { available: false };
 }
 
+// --- USD -> ILS exchange rate, cached 12h in chrome.storage.local ---
+const RATE_KEY = 'usd_ils_rate';
+const RATE_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
+
+async function getUsdIlsRate() {
+  const stored = await chrome.storage.local.get(RATE_KEY);
+  const entry = stored[RATE_KEY];
+  if (entry && Date.now() - entry.ts < RATE_TTL_MS) return entry.rate;
+  try {
+    const r = await fetch('https://open.er-api.com/v6/latest/USD');
+    const data = await r.json();
+    const rate = data?.rates?.ILS;
+    if (typeof rate === 'number') {
+      await chrome.storage.local.set({ [RATE_KEY]: { ts: Date.now(), rate } });
+      logLine(`RATE  USD->ILS = ${rate}`);
+      return rate;
+    }
+  } catch (err) {
+    logLine(`RATE ERROR: ${err.message}`);
+  }
+  // Fall back to last known rate even if stale, else null.
+  return entry?.rate ?? null;
+}
+
 chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
+  if (req.type === 'GET_RATE') {
+    getUsdIlsRate().then(rate => sendResponse({ rate }));
+    return true; // async
+  }
   if (req.type !== 'FETCH_LOADED') return;
   const itadSlug = req.slug;
   const cacheKey = `loaded_cache_${itadSlug}`;

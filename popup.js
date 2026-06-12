@@ -32,6 +32,14 @@ async function refresh() {
   render(r[LOG_KEY]);
 }
 
+// Show the current USD->ILS exchange rate.
+chrome.runtime.sendMessage({ type: 'GET_RATE' }, (res) => {
+  const rateEl = document.getElementById('rate');
+  if (rateEl) rateEl.textContent = res?.rate
+    ? `Exchange rate: $1 = ₪${res.rate.toFixed(3)}`
+    : 'Exchange rate: unavailable';
+});
+
 // Initial paint + live updates as the background writes new log lines.
 refresh();
 chrome.storage.onChanged.addListener((changes, area) => {
