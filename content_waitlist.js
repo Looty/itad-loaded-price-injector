@@ -8,8 +8,10 @@ function processItems() {
     const match = bannerLink.href.match(/\/game\/([^/]+)\//);
     if (!match) { console.log('[Loaded] no slug match', bannerLink.href); return; }
     const slug = match[1];
+    // Released games have an ITAD price element; unreleased ones don't.
     const priceEl = item.querySelector('a[class*="price"][class*="svelte"]');
-    if (!priceEl) { console.log('[Loaded] no priceEl for slug:', slug); return; }
+    const released = !!priceEl;
+
     // One wrapper grid child containing a cut chip + price badge side by side.
     const wrapper = document.createElement('div');
     wrapper.className = 'loaded-waitlist-wrapper';
@@ -26,22 +28,38 @@ function processItems() {
     wrapper.appendChild(cutChip);
     const firstAction = item.querySelector('button.action');
     item.insertBefore(wrapper, firstAction ?? null);
-    item.style.gridTemplateColumns = '62px 127px 636px 200px 140px 45px 45px';
+    // Only released rows have the price-grid columns to widen; leave the
+    // unreleased rows' layout untouched so the badge just tucks in at the end.
+    if (released) {
+      item.style.gridTemplateColumns = '62px 127px 636px 200px 140px 45px 45px';
+    } else {
+      // Unreleased rows lack the price grid-columns, so the badge would land
+      // in the wrong cell. Pin the wrapper absolutely, aligned to the same
+      // column as the released rows' badges (tunable via --loaded-badge-right).
+      badge.classList.add('loaded-unreleased');
+      wrapper.classList.add('loaded-waitlist-wrapper--pinned');
+      item.style.position = 'relative';
+    }
     chrome.runtime.sendMessage({ type: 'FETCH_LOADED', slug }, (res) => {
       if (!res || !res.available) {
-        badge.textContent = 'N/A';
-        badge.classList.add('loaded-na');
+        // Unreleased + not on Loaded → quiet "soon" marker, not a loud N/A.
+        badge.textContent = released ? 'N/A' : 'soon';
+        badge.classList.add(released ? 'loaded-na' : 'loaded-soon');
+        badge.title = released
+          ? 'Not listed on Loaded.com'
+          : 'Not yet on Loaded.com — released games will show a price here';
         return;
       }
       badge.href = res.url;
       if (!res.inStock) {
-        badge.textContent = 'Sold Out';
-        badge.classList.add('loaded-sold-out-badge');
+        badge.textContent = released ? 'Sold Out' : 'Preorder';
+        badge.classList.add(released ? 'loaded-sold-out-badge' : 'loaded-preorder');
+        badge.title = 'Available on Loaded.com';
         return;
       }
       const priceUSD = parseFloat(res.price);
       // Compare with ITAD best price
-      const itadPriceText = priceEl.querySelector('[class*="price"]')?.textContent?.trim();
+      const itadPriceText = priceEl?.querySelector('[class*="price"]')?.textContent?.trim();
       const itadUSD = parseFloat(itadPriceText?.replace(/[^0-9.]/g, ''));
       if (!isNaN(itadUSD) && priceUSD < itadUSD) {
         const pct = Math.round((1 - priceUSD / itadUSD) * 100);
@@ -59,8 +77,18 @@ function processItems() {
   });
 }
 
-// MutationObserver to handle initial render + sort/filter re-renders
-const observer = new MutationObserver(processItems);
+// MutationObserver to handle initial render + sort/filter re-renders.
+// Debounced so a burst of mutations triggers at most one processItems pass.
+// processItems is idempotent (data-loaded-injected guard), so the observer
+// stays connected to catch re-renders.
+let debounceTimer = null;
+const observer = new MutationObserver(() => {
+  if (debounceTimer) return;
+  debounceTimer = setTimeout(() => {
+    debounceTimer = null;
+    processItems();
+  }, 100);
+});
 observer.observe(document.body, { childList: true, subtree: true });
 console.log('[Loaded] content_waitlist.js loaded');
 processItems();

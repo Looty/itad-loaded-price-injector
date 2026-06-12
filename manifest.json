@@ -3,11 +3,15 @@
   "name": "ITAD Loaded Price Injector",
   "version": "1.0",
   "description": "Shows Loaded.com (Israeli store) prices on IsThereAnyDeal",
-  "permissions": ["scripting"],
+  "permissions": ["scripting", "storage", "tabs"],
   "host_permissions": [
     "https://isthereanydeal.com/*",
     "https://www.loaded.com/*"
   ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Loaded Price Injector"
+  },
   "background": {
     "service_worker": "background.js"
   },

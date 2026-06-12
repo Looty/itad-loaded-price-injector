@@ -10,6 +10,29 @@ const SLUG_OVERRIDES = {
 
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
 
+// --- In-extension debug log (visible in the popup, no devtools needed) ---
+const LOG_KEY = 'loaded_logs';
+const LOG_MAX = 200;
+let logBuffer = [];
+let logFlushTimer = null;
+// Restore any persisted log on service-worker startup.
+chrome.storage.local.get(LOG_KEY).then(r => {
+  if (Array.isArray(r[LOG_KEY]) && logBuffer.length === 0) logBuffer = r[LOG_KEY];
+});
+function logLine(msg) {
+  console.log('[Loaded]', msg);
+  // Synchronous push — JS is single-threaded, so no read-modify-write race
+  // even with ~100 concurrent fetches.
+  logBuffer.push(`${new Date().toLocaleTimeString()}  ${msg}`);
+  if (logBuffer.length > LOG_MAX) logBuffer = logBuffer.slice(-LOG_MAX);
+  if (!logFlushTimer) {
+    logFlushTimer = setTimeout(() => {
+      logFlushTimer = null;
+      chrome.storage.local.set({ [LOG_KEY]: logBuffer });
+    }, 150);
+  }
+}
+
 // Extract inner text of the first element matching a class name (regex-based, no DOMParser)
 function extractText(html, className) {
   const m = html.match(new RegExp(`class="[^"]*${className}[^"]*"[^>]*>([^<]+)<`));
@@ -61,8 +84,9 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
     const stored = await chrome.storage.local.get(cacheKey);
     const entry = stored[cacheKey];
     if (entry) {
+      const ageMin = Math.round((Date.now() - entry.ts) / 60000);
       // Always serve cached data immediately, even if stale
-      console.log('[Loaded] Cache hit (stale-while-revalidate):', itadSlug);
+      logLine(`HIT  cache (age ${ageMin}min, no network)  ${itadSlug}`);
       sendResponse(entry.data);
       // Always refresh in background if stale
       if (Date.now() - entry.ts >= CACHE_TTL_MS) {
@@ -74,11 +98,13 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
     }
     // True cache miss (first ever visit) — must fetch and wait
     try {
+      const t0 = Date.now();
       const data = await fetchFromLoaded(itadSlug);
+      logLine(`MISS network fetch ${Date.now() - t0}ms  ${itadSlug}`);
       await chrome.storage.local.set({ [cacheKey]: { ts: Date.now(), data } });
       sendResponse(data);
     } catch (err) {
-      console.error('[Loaded] Fetch error:', err);
+      logLine(`ERROR ${itadSlug}: ${err.message}`);
       sendResponse({ available: false });
     }
   })();

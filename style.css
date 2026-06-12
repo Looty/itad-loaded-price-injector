@@ -104,3 +104,29 @@
   color: #e57373;
   font-weight: 400;
 }
+/* Pin unreleased badges to the same column as released rows' badges.
+   Adjust --loaded-badge-right if it doesn't line up on your screen. */
+.loaded-waitlist-wrapper--pinned {
+  position: absolute;
+  top: 50%;
+  right: var(--loaded-badge-right, 108px);
+  transform: translateY(-50%);
+}
+
+/* ── Unreleased games: subtle, lower-key badges ── */
+.loaded-waitlist-badge.loaded-unreleased {
+  font-size: 13px;
+  font-weight: 400;
+  padding: 1px 7px;
+}
+.loaded-waitlist-badge.loaded-soon {
+  background: transparent;
+  border-color: #2a3343;
+  color: #5a6678;
+  font-style: italic;
+}
+.loaded-waitlist-badge.loaded-preorder {
+  background: #1a2438;
+  border-color: #2a4a7a;
+  color: #7aa7e0;
+}

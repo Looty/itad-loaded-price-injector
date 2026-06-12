@@ -125,12 +125,20 @@ function getHashClass(row) {
 }
 
 console.log('[Loaded] content_game.js loaded, slug:', slug);
-// MutationObserver: wait for Svelte to render the prices section
+// MutationObserver: wait for Svelte to render the prices section.
+// Debounced to coalesce bursts of mutations; disconnects once our row is in.
+let debounceTimer = null;
 const observer = new MutationObserver(() => {
-  if (document.querySelector('section.prices a.row')) {
-    injectLoadedRow();
-  }
+  if (debounceTimer) return;
+  debounceTimer = setTimeout(() => {
+    debounceTimer = null;
+    if (document.querySelector('section.prices a.row')) {
+      injectLoadedRow();
+      if (document.getElementById(LOADED_ID)) observer.disconnect();
+    }
+  }, 100);
 });
 observer.observe(document.body, { childList: true, subtree: true });
 // Also try immediately in case already rendered
 injectLoadedRow();
+if (document.getElementById(LOADED_ID)) observer.disconnect();
