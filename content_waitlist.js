@@ -3,10 +3,23 @@ const ratePromise = new Promise((resolve) => {
   chrome.runtime.sendMessage({ type: 'GET_RATE' }, (res) => resolve(res?.rate ?? null));
 });
 
-function setNis(el, usd) {
-  ratePromise.then((rate) => {
-    if (rate && !isNaN(usd)) el.textContent = `₪${(usd * rate).toFixed(2)}`;
-  });
+function normalizeCurrency(currency) {
+  const code = String(currency ?? 'USD').toUpperCase();
+  return code === 'NIS' ? 'ILS' : code;
+}
+
+// Loaded can return a localized price. Normalize it before comparing against
+// ITAD's USD prices, while retaining the actual ILS amount for display.
+function normalizePrice(res, rate) {
+  const amount = Number.parseFloat(res.price);
+  const currency = normalizeCurrency(res.currency);
+  if (!Number.isFinite(amount)) return { currency, usd: null, ils: null };
+
+  const validRate = Number.isFinite(rate) && rate > 0;
+  if (currency === 'ILS') {
+    return { currency, usd: validRate ? amount / rate : null, ils: amount };
+  }
+  return { currency, usd: amount, ils: validRate ? amount * rate : null };
 }
 
 function processItems() {
@@ -74,23 +87,39 @@ function processItems() {
         badge.title = 'Available on Loaded.com';
         return;
       }
-      const priceUSD = parseFloat(res.price);
-      setNis(nisChip, priceUSD);
-      // Compare with ITAD best price
-      const itadPriceText = priceEl?.querySelector('[class*="price"]')?.textContent?.trim();
-      const itadUSD = parseFloat(itadPriceText?.replace(/[^0-9.]/g, ''));
-      if (!isNaN(itadUSD) && priceUSD < itadUSD) {
-        const pct = Math.round((1 - priceUSD / itadUSD) * 100);
-        badge.classList.add('loaded-cheaper');
-        badge.textContent = `↓ $${priceUSD.toFixed(2)}`;
-        badge.title = `Loaded.com is cheaper: $${priceUSD.toFixed(2)} vs $${itadUSD.toFixed(2)} on ITAD`;
-        cutChip.textContent = `-${pct}%`;
-        cutChip.classList.add('loaded-cut-chip--visible');
-      } else {
-        badge.classList.add('loaded-pricier');
-        badge.textContent = `$${priceUSD.toFixed(2)}`;
-        badge.title = `Loaded.com: $${priceUSD.toFixed(2)}`;
-      }
+      ratePromise.then((rate) => {
+        const price = normalizePrice(res, rate);
+        if (price.usd === null && price.ils === null) {
+          badge.textContent = 'N/A';
+          badge.classList.add('loaded-na');
+          badge.title = 'Loaded.com returned an invalid price';
+          return;
+        }
+
+        // Keep USD as the primary amount for consistency with ITAD. If Loaded
+        // returned ILS, convert it to USD for display/comparison and show the
+        // original ILS amount underneath instead of converting it a second time.
+        const primary = price.usd !== null
+          ? `$${price.usd.toFixed(2)}`
+          : `₪${price.ils.toFixed(2)}`;
+        if (price.ils !== null) nisChip.textContent = `₪${price.ils.toFixed(2)}`;
+
+        // Compare with ITAD best price only after normalizing to USD.
+        const itadPriceText = priceEl?.querySelector('[class*="price"]')?.textContent?.trim();
+        const itadUSD = parseFloat(itadPriceText?.replace(/[^0-9.]/g, ''));
+        if (price.usd !== null && !isNaN(itadUSD) && price.usd < itadUSD) {
+          const pct = Math.round((1 - price.usd / itadUSD) * 100);
+          badge.classList.add('loaded-cheaper');
+          badge.textContent = `↓ ${primary}`;
+          badge.title = `Loaded.com is cheaper: ${primary} vs $${itadUSD.toFixed(2)} on ITAD`;
+          cutChip.textContent = `-${pct}%`;
+          cutChip.classList.add('loaded-cut-chip--visible');
+        } else {
+          badge.classList.add('loaded-pricier');
+          badge.textContent = primary;
+          badge.title = `Loaded.com: ${primary}`;
+        }
+      });
     });
   });
 }

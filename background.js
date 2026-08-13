@@ -114,7 +114,7 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
     if (entry) {
       const ageMin = Math.round((Date.now() - entry.ts) / 60000);
       // Always serve cached data immediately, even if stale
-      logLine(`HIT  cache (age ${ageMin}min, no network)  ${itadSlug}`);
+      logLine(`HIT  cache (age ${ageMin}min, no network)  ${itadSlug}  [${entry.data?.currency ?? '?'} ${entry.data?.price ?? '?'}]`);
       sendResponse(entry.data);
       // Always refresh in background if stale
       if (Date.now() - entry.ts >= CACHE_TTL_MS) {
@@ -128,7 +128,7 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
     try {
       const t0 = Date.now();
       const data = await fetchFromLoaded(itadSlug);
-      logLine(`MISS network fetch ${Date.now() - t0}ms  ${itadSlug}`);
+      logLine(`MISS network fetch ${Date.now() - t0}ms  ${itadSlug}  [${data?.currency ?? '?'} ${data?.price ?? '?'}]`);
       await chrome.storage.local.set({ [cacheKey]: { ts: Date.now(), data } });
       sendResponse(data);
     } catch (err) {

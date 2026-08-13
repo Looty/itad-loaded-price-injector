@@ -12,6 +12,25 @@ function makeCell(classes, content) {
   return div;
 }
 
+function normalizeCurrency(currency) {
+  const code = String(currency ?? 'USD').toUpperCase();
+  return code === 'NIS' ? 'ILS' : code;
+}
+
+// Loaded can return a localized price. Normalize it before comparing against
+// ITAD's USD prices, while retaining the actual ILS amount for display.
+function normalizePrice(res, rate) {
+  const amount = Number.parseFloat(res.price);
+  const currency = normalizeCurrency(res.currency);
+  if (!Number.isFinite(amount)) return { currency, usd: null, ils: null };
+
+  const validRate = Number.isFinite(rate) && rate > 0;
+  if (currency === 'ILS') {
+    return { currency, usd: validRate ? amount / rate : null, ils: amount };
+  }
+  return { currency, usd: amount, ils: validRate ? amount * rate : null };
+}
+
 function injectLoadedRow() {
   if (document.getElementById(LOADED_ID)) return;
   const existingRow = document.querySelector('a.row[class*="svelte"]');
@@ -88,33 +107,33 @@ function injectLoadedRow() {
     }
     const priceSpan = document.createElement('span');
     priceSpan.className = 'loaded-price';
-    priceSpan.textContent = `$${res.price}`;
     cell.appendChild(priceSpan);
-    // NIS conversion, shown under the USD price.
+    // NIS conversion, shown under the primary USD price.
     const nisSpan = document.createElement('span');
     nisSpan.className = 'loaded-price-nis';
     cell.appendChild(nisSpan);
     chrome.runtime.sendMessage({ type: 'GET_RATE' }, (rateRes) => {
-      const rate = rateRes?.rate;
-      const usd = parseFloat(res.price);
-      if (rate && !isNaN(usd)) nisSpan.textContent = `₪${(usd * rate).toFixed(2)}`;
+      const price = normalizePrice(res, rateRes?.rate);
+      if (price.usd !== null) priceSpan.textContent = `$${price.usd.toFixed(2)}`;
+      else if (price.ils !== null) priceSpan.textContent = `₪${price.ils.toFixed(2)}`;
+      if (price.ils !== null) nisSpan.textContent = `₪${price.ils.toFixed(2)}`;
+
+      // Compare loaded price against best price already on the page.
+      const otherPrices = [...document.querySelectorAll(`a.row[class*="svelte"]:not(#${LOADED_ID}) .cell--price`)]
+        .map(c => { const m = c.textContent.match(/[\d,]+\.?\d*/); return m ? parseFloat(m[0].replace(',', '')) : null; })
+        .filter(p => p !== null && p > 0);
+      const bestPrice = otherPrices.length ? Math.min(...otherPrices) : null;
+      if (bestPrice && price.usd !== null && price.usd < bestPrice) {
+        const pct = Math.round((1 - price.usd / bestPrice) * 100);
+        const cutCell = document.getElementById('loaded-cut-cell');
+        if (cutCell && pct > 0) cutCell.textContent = `-${pct}%`;
+      }
     });
     if (res.oldPrice) {
       const oldSpan = document.createElement('span');
       oldSpan.className = 'loaded-old-price';
       oldSpan.textContent = res.oldPrice;
       cell.appendChild(oldSpan);
-    }
-    // Compare loaded price against best price already on the page
-    const otherPrices = [...document.querySelectorAll(`a.row[class*="svelte"]:not(#${LOADED_ID}) .cell--price`)]
-      .map(c => { const m = c.textContent.match(/[\d,]+\.?\d*/); return m ? parseFloat(m[0].replace(',', '')) : null; })
-      .filter(p => p !== null && p > 0);
-    const bestPrice = otherPrices.length ? Math.min(...otherPrices) : null;
-    const loadedPrice = parseFloat(res.price);
-    if (bestPrice && loadedPrice < bestPrice) {
-      const pct = Math.round((1 - loadedPrice / bestPrice) * 100);
-      const cutCell = document.getElementById('loaded-cut-cell');
-      if (cutCell && pct > 0) cutCell.textContent = `-${pct}%`;
     }
     // Update the row href with the real URL
     document.getElementById(LOADED_ID).href = res.url;
